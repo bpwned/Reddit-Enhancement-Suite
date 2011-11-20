@@ -956,9 +956,6 @@ var RESUtils = {
 	setSelectValue: function(obj, value) {
 		for (var i=0, len=obj.length; i < len; i++) {
 			// for some reason in firefox, obj[0] is undefined... weird. adding a test for existence of obj[i]...
-			// okay, now as of ff8, it's even barfing here unless we console.log out a check - nonsensical.
-			// a bug has been filed to bugzilla at:
-			// https://bugzilla.mozilla.org/show_bug.cgi?id=702847
 			if ((obj[i]) && (obj[i].value == value)) {
 				obj[i].selected = true;
 			}
@@ -3846,6 +3843,139 @@ modules['myModule'] = {
 }; // note: you NEED this semicolon at the end!
 
 ************************************************************************************************************/
+
+modules['unreadCommentHelper'] = {
+	moduleID: 'unreadCommentHelper',
+	moduleName: 'unreadCommentHelper',
+	category: 'CustomModules',
+	options: {
+		// any configurable options you have go here...
+		// options must have a type and a value.. 
+		// valid types are: text, boolean (if boolean, value must be true or false)
+		// for example:
+		/*defaultMessage: {
+			type: 'text',
+			value: 'this is default text',
+			description: 'explanation of what this option is for'
+		},
+		/*doSpecialStuff: {
+			type: 'boolean',
+			value: false,
+			description: 'explanation of what this option is for'
+		}*/
+	},
+	description: 'unreadCommentHelper',
+	isEnabled: function() {
+		return RESConsole.getModulePrefs(this.moduleID);
+	},
+	include: Array(
+	    /https?:\/\/([a-z]+).reddit.com\/[-\w\.\/]+\/comments\/[-\w\.]+/i
+	),
+	isMatchURL: function() {
+		return RESUtils.isMatchURL(this.moduleID);
+	},
+	go: function() {
+		if ((this.isEnabled()) && (this.isMatchURL())) {
+			// do stuff now!
+			// this is where your code goes...
+			
+			handleCommentsPage = function(evt) {
+			    var DATA_VERSION = '1';
+                /* Shove an item into local storage */
+                getData = function(id) {
+                    var data = localStorage.getItem(DATA_VERSION + '|' + id);
+                    //console.log("getData", document.location.href, id, data);
+                    if (data === null || data.substr(0, 1) != "{")
+                        return null;
+                    return JSON.parse(data);
+                }
+                /* Get an item out of local storage */
+                setData = function(id, data) {
+                    //console.log("setData", document.location.href, id, data);
+                    localStorage.setItem(DATA_VERSION + '|' + id, JSON.stringify(data));
+                }
+                /* Apply a style to highlight unread comments */
+                highlightUnread = function(comment) {
+                    //comment.style.setProperty("border-left", "2px solid orange", null);
+                    //comment.style.setProperty("padding-left", "5px", null);
+                    comment.style.setProperty("background", "rgba(255, 153, 102, 0.1)", null);
+                }
+                /*
+                Jump to the first new comment. (Not actually guaranteed to be the
+                first, but it usually will be. Certainty would be a performance
+                hit.)
+                */
+                jumpToNewComment = function(cid) {
+                    var url = document.location.href.split("#")[0];
+                    document.location.href = url + "#c" + cid;
+                }
+                
+                var url = document.location.href.split("#");
+                var frag = url.length > 1 ? url[1] : false;
+                var b36tid = url[0].match(/\/comments\/([^\/]+)/)[1];
+
+                var row = getData(b36tid);
+
+                var update, max_cid = 0, newmax = 0, seencount = 0;
+                if (row) {
+                    newmax = max_cid = row["max_cid"];
+                    seencount = row["seencount"];
+                }
+
+                // One named anchor per comment, including deleted ones.
+                // This matches the link itself now, but eh.
+                var snap = document.evaluate('//div[contains(@class, "entry")]',
+                    document, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+
+                var elm, i, b36cid, cid, parentClass, comments = 0, jumped = false;
+                for(elm = null, i = 0; (elm = snap.snapshotItem(i)); ++i) {
+                    // Check that this is an extant comment.
+                    parentClass = elm.parentNode.className;
+                    if (!parentClass.match('comment'))
+                        continue;
+
+                    ++comments;
+                    b36cid = parentClass.split("_")[1].split(' ')[0].substr(1);
+                    cid = parseInt(b36cid, 36);
+                    if (cid > max_cid) {
+                        if (max_cid > 0) {
+                            highlightUnread(elm);
+                        }
+                        if (cid > newmax) {
+                            newmax = cid;
+                            if (frag == "new" && !jumped) {
+                                jumpToNewComment(b36cid);
+                                jumped = true;
+                            }
+                        }
+                    }
+                }
+
+                if (comments > 0) {
+                    setData(b36tid, {"max_cid": newmax, "seencount": comments});
+                }
+
+            }
+			
+			
+			if ((RESUtils.pageType() == 'comments') || (RESUtils.pageType() == 'profile')) {
+				if (window.location.href[window.location.href.length-1] == '/') {// full comment page
+					handleCommentsPage();
+				}
+			}/* else if ((RESUtils.pageType() == 'linklist') && (this.options.applyToLinks.value)) {
+				this.linksWithMoos = Array();
+				this.applyUppersAndDownersToLinks();
+				document.body.addEventListener('DOMNodeInserted', function(event) {
+					if ((event.target.tagName == 'DIV') && (event.target.getAttribute('id') == 'siteTable')) {
+						modules['uppersAndDowners'].applyUppersAndDownersToLinks(modules['neverEndingReddit'].nextPageURL);
+					}
+				}, true);
+				
+			}*/
+		}
+	}
+}; // note: you NEED this semicolon at the end!
+
 
 
 modules['subRedditTagger'] = {
